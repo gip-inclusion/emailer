@@ -1,0 +1,45 @@
+name: CI
+
+# Tests sur chaque PR et chaque push sur main.
+# Les PR Dependabot patch/minor sont fusionnées dès que les tests passent ;
+# les montées majeures restent ouvertes pour une revue humaine.
+# (Pas de branche protégée ici — on pousse directement sur main —, d'où la
+# fusion directe après les tests plutôt que `gh pr merge --auto`.)
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv run --locked --extra dev pytest -q
+
+  dependabot-auto-merge:
+    name: Dependabot auto-merge
+    needs: tests
+    if: >-
+      github.event_name == 'pull_request'
+      && github.actor == 'dependabot[bot]'
+      && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      - if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --rebase "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
