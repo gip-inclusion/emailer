@@ -12,9 +12,9 @@ Schéma d'entrée = LISTE de conseillers ; chaque élément :
   { legende, items[] { nom, pass_note, prescripteur_nom/email, url, cta_label } } } }.
 
 Lancer :
-  uv run python -m sps.render_prescripteurs                 # aperçu du 1er conseiller -> preview.html
-  uv run python -m sps.render_prescripteurs <in.json> --preview [i]
-  uv run python -m sps.render_prescripteurs <in.json> --all [out_dir]   # 1 HTML par conseiller
+  uv run python -m emailer.render_prescripteurs                 # aperçu du 1er conseiller -> preview.html
+  uv run python -m emailer.render_prescripteurs <in.json> --preview [i]
+  uv run python -m emailer.render_prescripteurs <in.json> --all [out_dir]   # 1 HTML par conseiller
 """
 import json
 import re
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-from sps.charte import esc
+from emailer.charte import esc
 
 # webhook n8n de contact groupé (même format que les contact_url pré-calculés du JSON)
 _WEBHOOK_SUBJECT = "Contrats%20IAE%20arrivant%20%C3%A0%20%C3%A9ch%C3%A9ance"

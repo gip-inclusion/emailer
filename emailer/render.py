@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from sps.template import (render_richblock, tension_badge, default_intro,
+from emailer.template import (render_richblock, tension_badge, default_intro,
                           DEFAULT_REMARQUES, esc)
 
 _CTA_BY_DOMAIN = [

@@ -1,10 +1,44 @@
-# sps-emails
+# emailer
 
-Génération et envoi d'e-mails de recommandations « solutions structurées » (SPS) à des conseillers en insertio socio-pro.
+Mise en forme et envoi des campagnes e-mail de La Plateforme de l'inclusion via l'**API transactionnelle Brevo**.
 
-## Pipeline
+L'outil sépare deux choses :
 
-JSON (1 par conseiller) → `deanon` (optionnel, vrais noms, **sans LLM**) → `render` (HTML) → `send` / `schedule` (Brevo).
+- **le rendu** : un module par type d'e-mail transforme des données JSON en fichiers HTML prêts à envoyer ;
+- **l'envoi**, commun à tous les types : `emailer send` / `schedule` envoie chaque fichier HTML d'un dossier à ses destinataires, une copie individuelle par personne.
+
+## Principe : un fichier HTML = un e-mail
+
+Quel que soit le type d'e-mail, l'envoi lit les `*.html` d'un dossier. Chaque fichier porte lui-même son objet et ses destinataires :
+
+```html
+<html>
+<head><title>Objet de l'e-mail</title></head>
+<body>
+<!-- to: premiere.personne@example.org -->
+<!-- to: deuxieme.personne@example.org -->
+…
+</body>
+</html>
+```
+
+- `<title>` devient l'**objet** (préfixé `[TEST]` en mode test).
+- Chaque `<!-- to: … -->` reçoit **sa propre copie** (pas de vrai « cc », les adresses ne se voient pas entre elles ; doublons retirés).
+- `{{ params.EMAIL }}` dans le HTML est remplacé par l'adresse du destinataire de la copie (utile pour un lien de formulaire d'avis).
+
+Un e-mail produit ailleurs (HTML déjà mis en forme en amont) peut donc être envoyé tel quel, à condition d'y ajouter `<title>` et les `<!-- to: -->`.
+
+## Types d'e-mails disponibles
+
+| Type | Destinataires | Rendu | Entrée |
+|---|---|---|---|
+| Recommandations SPS (solutions de parcours) | conseillers France Travail | `emailer render` (`emailer/render.py` + `template.py`) | 1 JSON par conseiller, schéma `docs/schema/email.schema.json` |
+| Fins de contrats IAE — vue prescripteur | conseillers prescripteurs | `python -m emailer.render_prescripteurs` | liste JSON de conseillers (voir l'en-tête du module) |
+| Fins de contrats IAE — vue SIAE | structures IAE employeuses | `python -m emailer.render_siae` ou `emailer.render_structure` | liste JSON de structures (voir l'en-tête du module) |
+
+`emailer/charte.py` regroupe ce qui est commun à tous les rendus (couleurs, logo, échappement, encart avis, tableaux qui s'empilent sur mobile).
+
+**Ajouter un type d'e-mail** : créer `emailer/render_<type>.py` qui importe `charte.py` et écrit un HTML par e-mail avec `<title>` et `<!-- to: -->`. L'envoi n'a rien à changer.
 
 ## 1. Installation (une fois)
 
@@ -13,72 +47,94 @@ uv sync
 cp .env.example .env      # puis renseigner les variables ci-dessous
 ```
 
-### Variables d'environnement (`.env`) à remplir
-
 | Variable | Requise | Pour quoi |
 |---|---|---|
-| `BREVO_API_KEY` | oui (envoi) | clé API Brevo transactionnel |
-| `BREVO_SENDER` | oui (envoi) | e-mail expéditeur, **validé** dans Brevo |
-| `TEST_RECIPIENTS` | oui pour `--test` | destinataires de test (séparés par virgules) |
-| `SPS_TUNNEL_HOST` / `SPS_TUNNEL_USER` | oui (envoi) | box du tunnel SOCKS (egress IP fixe whitelistée Brevo) |
-| `BREVO_PROXY` | optionnel | proxy SOCKS (sinon utiliser `--via`) ; le tunnel doit être ouvert |
+| `BREVO_API_KEY` | oui (envoi) | clé API Brevo ; idéalement **une clé par personne**, révocable seule |
+| `BREVO_SENDER` | oui (envoi) | adresse d'expéditeur, **validée** dans Brevo |
+| `TEST_RECIPIENTS` | oui pour `--test` | vos adresses de test, séparées par des virgules |
+| `EMAILER_TUNNEL_HOST` / `EMAILER_TUNNEL_USER` | oui (envoi) | box du tunnel SOCKS (voir ci-dessous) ; valeurs transmises hors Git |
+| `BREVO_PROXY` | optionnel | proxy SOCKS (sinon `--via`) ; le tunnel doit être ouvert |
 
-`convert` / `deanon` / `render` ne nécessitent **aucune** variable (étapes locales) ; elles ne servent qu'à partir de `send` / `schedule` / `cancel`.
+Le rendu n'a besoin d'aucune variable. Elles ne servent qu'à `send`, `schedule` et `cancel`.
 
-## 2. Où mettre les JSON
+### Tunnel d'envoi (adresse IP fixe)
 
-Un fichier JSON **par conseiller**, au format `docs/schema/email.schema.json`, à déposer dans **`out/json/`** (dossier non versionné).
-`nom` des bénéficiaires = `null` (anonyme) ; les vrais noms sont ajoutés à l'étape `deanon`.
+Brevo n'accepte les appels API que depuis des adresses IP autorisées. Les appels passent donc par une box à IP fixe, via un tunnel SSH (le contenu reste chiffré de bout en bout : la box ne voit ni la clé ni les e-mails).
 
-## 3. Étapes (ce qu'on tape)
+Pour un nouvel utilisateur : générer une clé SSH et la faire ajouter sur la box par quelqu'un qui l'administre.
 
-**a. (optionnel) Désanonymiser** — remplit les vrais noms depuis le CSV réel, par clé `de_id`, sans LLM :
 ```bash
-uv run sps deanon out/json/ --csv <chemin/vers/le-vrai.csv> -o out/json-nom/
-```
-Sauter cette étape = rendu anonyme (« Bénéficiaire #N »), pratique pour tester.
-
-**b. Générer les HTML** (un par conseiller) :
-```bash
-uv run sps render out/json-nom/ -o out/html/      # ou out/json/ si non désanonymisé
+ssh-keygen -t ed25519 -f ~/.ssh/sps-tunnel
 ```
 
-**c. Ouvrir le tunnel d'egress** (IP fixe whitelistée Brevo — détails dans CLAUDE.md) :
+Puis, avant chaque envoi :
+
 ```bash
-ssh -i ~/.ssh/sps-tunnel -D 1080 -N -f "$SPS_TUNNEL_USER@$SPS_TUNNEL_HOST"
+set -a; . ./.env; set +a
+ssh -i ~/.ssh/sps-tunnel -D 1080 -N -f "$EMAILER_TUNNEL_USER@$EMAILER_TUNNEL_HOST"
 export BREVO_PROXY=socks5h://127.0.0.1:1080
 ```
 
-**d. Envoi de TEST** → vers `TEST_RECIPIENTS`, objet préfixé `[TEST]` :
+Utiliser `socks5h` (et non `socks5`) : le tunnel n'autorise que `api.brevo.com`.
+
+## 2. Produire les HTML
+
+Selon le type d'e-mail (voir le tableau ci-dessus). Exemple pour les recommandations SPS :
+
 ```bash
-uv run sps send out/html/ --test
+uv run emailer deanon out/json/ --csv <le-vrai.csv> -o out/json-nom/   # optionnel : vrais noms, sans LLM
+uv run emailer render out/json-nom/ -o out/html/                       # ou out/json/ pour un rendu anonyme
 ```
 
-**e. Envoi RÉEL** → destinataire = e-mail conseiller embarqué dans chaque HTML :
+Ouvrir quelques fichiers dans un navigateur pour relire avant d'envoyer.
+
+## 3. Envoyer
+
+**Test** — chaque fichier part vers `TEST_RECIPIENTS`. À lancer sur un **petit dossier d'échantillon**, pas sur toute la campagne (1 envoi par fichier et par adresse de test) :
+
 ```bash
-uv run sps send out/html/
+uv run emailer send out/echantillon/ --test
 ```
 
-**f. Envoi PROGRAMMÉ** (Brevo `scheduledAt`) → affiche un `runId` :
+**Envoi immédiat** aux vrais destinataires :
+
 ```bash
-uv run sps schedule out/html/ --at 2026-06-29T07:00:00.000+02:00
+uv run emailer send out/html/ --tag ma-campagne-2026-11
 ```
 
-**g. Annuler un envoi programmé** (par le `runId` affiché, aussi loggé dans `out/schedules.jsonl`) :
+**Envoi programmé** (recommandé pour une campagne : on peut l'annuler jusqu'à l'heure prévue) :
+
 ```bash
-uv run sps cancel <runId>
+uv run emailer schedule out/html/ --at 2026-11-24T07:00:00.000+01:00 --tag ma-campagne-2026-11
 ```
 
-**h. Purger les sorties nominatives** (hygiène vie privée — manuel, conseillé après envoi) :
+- Le fuseau compte : `+01:00` en hiver, `+02:00` en été. Brevo accepte environ 72 h d'avance.
+- La commande affiche un **`runId`**, aussi noté dans `out/schedules.jsonl` (sans aucune adresse). Ce fichier reste sur la machine de la personne qui a programmé : c'est elle qui peut annuler.
+- `--tag` (répétable) permet ensuite de filtrer les statistiques de la campagne dans Brevo.
+
+**Annuler** un envoi programmé (tunnel ouvert) :
+
 ```bash
-uv run sps purge                      # out/json-nom + out/html de plus de 7 j (demande confirmation)
-uv run sps purge --older-than 0 -y    # tout, sans confirmation
+uv run emailer cancel <runId>
 ```
 
-## Données & secrets
+**Adresses bloquées** : avant chaque envoi réel, `send` et `schedule` retirent les adresses de la blocklist Brevo (adresses invalides, désinscriptions, plaintes spam). Si la blocklist est injoignable, l'envoi continue sans ce filtre. Pour le désactiver : `--no-blocklist-filter`.
 
-- `out/` et `data/` : **non versionnés** (données personnelles) — y déposer JSON, CSV, sorties.
-- `.env` : secrets (clé Brevo, expéditeur, destinataires de test, coordonnées du tunnel).
-- Contrat JSON : `docs/schema/email.schema.json`.
+## 4. Après l'envoi
 
-> `sps convert <md.md> -o <dir>` existe encore (adaptateur **legacy** MD→JSON) mais n'est **plus le chemin nominal** : l'entrée attendue est directement du JSON.
+Les statistiques par campagne sont dans Brevo (filtre par tag), ou via l'API `GET /v3/smtp/statistics/aggregatedReport?tag=…` (tunnel ouvert).
+
+Purger les sorties nominatives :
+
+```bash
+uv run emailer purge                      # out/json-nom + out/html de plus de 7 jours (demande confirmation)
+uv run emailer purge --older-than 0 -y    # tout, sans confirmation
+```
+
+## Données personnelles
+
+- `data/` et `out/` ne sont **pas versionnés** : y déposer les données sources et les sorties. Les transmettre par un canal sûr, jamais par le dépôt.
+- `.env` contient les secrets : ne pas le partager, chacun a le sien.
+- Avec un assistant IA (Claude Code…) : les consignes du dépôt (`CLAUDE.md`) lui interdisent de lire les fichiers nominatifs ; les scripts sont déterministes et n'affichent que des compteurs.
+
+> `emailer convert <md> -o <dir>` est un ancien adaptateur Markdown → JSON pour les recommandations SPS, conservé mais hors du chemin habituel.

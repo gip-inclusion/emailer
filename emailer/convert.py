@@ -2,8 +2,8 @@ import json
 import re
 from pathlib import Path
 
-from sps.convert_sections import parse_sections
-from sps.schema import validate_email
+from emailer.convert_sections import parse_sections
+from emailer.schema import validate_email
 
 _DASH = "─"
 

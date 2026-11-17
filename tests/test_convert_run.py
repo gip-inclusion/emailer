@@ -3,8 +3,8 @@ import json
 import os
 from pathlib import Path
 import pytest
-from sps.convert import parse_md, run_convert
-from sps.schema import validate_email
+from emailer.convert import parse_md, run_convert
+from emailer.schema import validate_email
 
 FIX = Path(__file__).parent / "fixtures" / "one_block.md"
 
@@ -53,7 +53,7 @@ def test_aucune_action_section_validates():
 
 def test_end_to_end_convert_then_render():
     # the real producer output (parse_md) must render without contract drift
-    from sps.render import render_doc
+    from emailer.render import render_doc
     doc = parse_md(FIX.read_text(encoding="utf-8"))[0]
     html = render_doc(doc)
     assert "<title>" in html

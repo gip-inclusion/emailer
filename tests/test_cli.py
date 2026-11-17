@@ -1,7 +1,7 @@
 import subprocess, sys
 
 def run(*args):
-    return subprocess.run([sys.executable, "-m", "sps", *args],
+    return subprocess.run([sys.executable, "-m", "emailer", *args],
                           capture_output=True, text=True)
 
 def test_help_lists_subcommands():

@@ -1,4 +1,4 @@
-from sps.schema import validate_email
+from emailer.schema import validate_email
 
 VALID = {
     "conseiller": {"ref": "PE1", "nom": "X Y", "email": "x@francetravail.fr"},

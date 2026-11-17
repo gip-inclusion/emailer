@@ -1,7 +1,7 @@
 [project]
-name = "sps-emails"
+name = "emailer"
 version = "0.1.0"
-description = "Génération et envoi d'e-mails de recommandations IAE (SPS) via Brevo"
+description = "Rendu et envoi d'e-mails (campagnes La Plateforme de l'inclusion) via Brevo"
 requires-python = ">=3.12"
 dependencies = [
     "httpx[socks]>=0.28.1",
@@ -10,13 +10,13 @@ dependencies = [
 ]
 
 [project.scripts]
-sps = "sps.__main__:main"
+emailer = "emailer.__main__:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["sps"]
+packages = ["emailer"]
 
 [build-system]
 requires = ["hatchling"]

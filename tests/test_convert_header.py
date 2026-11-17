@@ -1,5 +1,5 @@
 from pathlib import Path
-from sps.convert import parse_md
+from emailer.convert import parse_md
 
 FIX = Path(__file__).parent / "fixtures" / "one_block.md"
 

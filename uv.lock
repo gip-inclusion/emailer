@@ -43,6 +43,30 @@ wheels = [
 ]
 
 [[package]]
+name = "emailer"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "httpx", extra = ["socks"] },
+    { name = "jsonschema" },
+    { name = "markdown" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
+    { name = "jsonschema", specifier = ">=4.21" },
+    { name = "markdown", specifier = ">=3.10.3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -313,30 +337,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/f8/5c/48a7d9495be3d1c65
 wheels = [
     { url = "https://files.pythonhosted.org/packages/37/c3/6eeb6034408dac0fa653d126c9204ade96b819c936e136c5e8a6897eee9c/socksio-1.0.0-py3-none-any.whl", hash = "sha256:95dc1f15f9b34e8d7b16f06d74b8ccf48f609af32ab33c608d08761c5dcbb1f3", size = 12763, upload-time = "2020-04-17T15:50:31.878Z" },
 ]
-
-[[package]]
-name = "sps-emails"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "httpx", extra = ["socks"] },
-    { name = "jsonschema" },
-    { name = "markdown" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
-    { name = "jsonschema", specifier = ">=4.21" },
-    { name = "markdown", specifier = ">=3.10.3" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "typing-extensions"

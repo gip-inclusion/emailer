@@ -1,5 +1,5 @@
 import os
-from sps.brevo import build_payload, recipients_for
+from emailer.brevo import build_payload, recipients_for
 
 HTML = "<html><head><title>Recommandations IAE – PE0TEST</title></head><body>x</body></html>"
 
@@ -29,7 +29,7 @@ def test_recipients_real_mode_uses_conseiller():
 
 
 import pytest
-from sps.brevo import validate_scheduled_at
+from emailer.brevo import validate_scheduled_at
 
 def test_valid_iso():
     validate_scheduled_at("2026-06-29T07:00:00")  # no raise
@@ -39,7 +39,7 @@ def test_invalid_iso_raises():
         validate_scheduled_at("29-06-2026 7h")
 
 
-from sps.brevo import _resolve_proxy
+from emailer.brevo import _resolve_proxy
 
 def test_resolve_proxy_arg_wins(monkeypatch):
     monkeypatch.setenv("BREVO_PROXY", "socks5h://env:1")
@@ -54,7 +54,7 @@ def test_resolve_proxy_none(monkeypatch):
     assert _resolve_proxy(None) is None
 
 
-from sps.brevo import _cancel_url, _log_schedule, _lookup_run
+from emailer.brevo import _cancel_url, _log_schedule, _lookup_run
 
 def test_cancel_url():
     assert _cancel_url("<abc@smtp-relay.mailin.fr>") == \
@@ -81,7 +81,7 @@ def test_lookup_run_no_file(tmp_path):
 
 
 # --- pré-filtre blocklist Brevo -------------------------------------------
-from sps.brevo import fetch_blocklist, run_send
+from emailer.brevo import fetch_blocklist, run_send
 
 
 class _FakeResp:
@@ -126,10 +126,10 @@ def test_run_send_excludes_blocklisted(tmp_path, monkeypatch, capsys):
         "<!-- to: Keep@x.fr --><!-- to: Bounced@x.fr --></body></html>",
         encoding="utf-8")
 
-    monkeypatch.setattr("sps.brevo.fetch_blocklist", lambda *a, **k: {"bounced@x.fr"})
-    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    monkeypatch.setattr("emailer.brevo.fetch_blocklist", lambda *a, **k: {"bounced@x.fr"})
+    monkeypatch.setattr("emailer.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
     sent_to = []
-    monkeypatch.setattr("sps.brevo._send_one",
+    monkeypatch.setattr("emailer.brevo._send_one",
                         lambda client, payload, key: sent_to.append(payload["to"][0]["email"]) or {"messageId": "<m>"})
 
     run_send(str(tmp_path), test=False)
@@ -149,10 +149,10 @@ def test_run_send_test_mode_skips_blocklist(tmp_path, monkeypatch):
 
     def _boom(*a, **k):
         raise AssertionError("fetch_blocklist ne doit pas être appelé en --test")
-    monkeypatch.setattr("sps.brevo.fetch_blocklist", _boom)
-    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    monkeypatch.setattr("emailer.brevo.fetch_blocklist", _boom)
+    monkeypatch.setattr("emailer.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
     sent_to = []
-    monkeypatch.setattr("sps.brevo._send_one",
+    monkeypatch.setattr("emailer.brevo._send_one",
                         lambda client, payload, key: sent_to.append(payload["to"][0]["email"]) or {"messageId": "<m>"})
 
     run_send(str(tmp_path), test=True)
@@ -169,10 +169,10 @@ def test_run_send_blocklist_fetch_failure_degrades(tmp_path, monkeypatch, capsys
 
     def _boom(*a, **k):
         raise RuntimeError("tunnel down")
-    monkeypatch.setattr("sps.brevo.fetch_blocklist", _boom)
-    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    monkeypatch.setattr("emailer.brevo.fetch_blocklist", _boom)
+    monkeypatch.setattr("emailer.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
     sent_to = []
-    monkeypatch.setattr("sps.brevo._send_one",
+    monkeypatch.setattr("emailer.brevo._send_one",
                         lambda client, payload, key: sent_to.append(payload["to"][0]["email"]) or {"messageId": "<m>"})
 
     run_send(str(tmp_path), test=False)  # ne doit pas lever : envoi sans pré-filtre
@@ -190,9 +190,9 @@ def test_run_send_skip_blocklist_flag(tmp_path, monkeypatch):
 
     def _boom(*a, **k):
         raise AssertionError("fetch_blocklist ne doit pas être appelé avec skip_blocklist=True")
-    monkeypatch.setattr("sps.brevo.fetch_blocklist", _boom)
-    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
-    monkeypatch.setattr("sps.brevo._send_one",
+    monkeypatch.setattr("emailer.brevo.fetch_blocklist", _boom)
+    monkeypatch.setattr("emailer.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    monkeypatch.setattr("emailer.brevo._send_one",
                         lambda client, payload, key: {"messageId": "<m>"})
 
     run_send(str(tmp_path), test=False, skip_blocklist=True)  # ne doit pas lever

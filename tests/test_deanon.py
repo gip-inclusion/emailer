@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from sps.deanon import load_name_map, deanonymize_doc, run_deanon
+from emailer.deanon import load_name_map, deanonymize_doc, run_deanon
 
 CSV = Path(__file__).parent / "fixtures" / "fake_names.csv"
 

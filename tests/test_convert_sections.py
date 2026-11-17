@@ -1,4 +1,4 @@
-from sps.convert_sections import parse_sections, section_type_for
+from emailer.convert_sections import parse_sections, section_type_for
 
 BODY = """
 📋 Donnez votre avis sur les solutions en 1 minute !

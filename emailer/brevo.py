@@ -170,7 +170,7 @@ def run_send(in_dir, test=False, scheduled_at=None, proxy=None, tags=None,
     if scheduled_at:
         run_id = str(uuid.uuid4())
         _log_schedule(_SCHEDULE_LOG, run_id, scheduled_at, message_ids, src)
-        print(f"runId = {run_id}  (annulable : uv run sps cancel {run_id})")
+        print(f"runId = {run_id}  (annulable : uv run emailer cancel {run_id})")
 
 
 def run_cancel(handle, proxy=None):

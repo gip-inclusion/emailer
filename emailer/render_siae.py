@@ -13,16 +13,16 @@ Schéma d'entrée = LISTE de structures ; chaque élément :
   pass_urgent, lien_candidature, accompagnateur?, positionne_par? } } } }.
 
 Lancer :
-  uv run python -m sps.render_siae                  # aperçu (ISCRA si présent) -> preview.html
-  uv run python -m sps.render_siae <in.json> --preview [i]
-  uv run python -m sps.render_siae <in.json> --all [out_dir]
+  uv run python -m emailer.render_siae                  # aperçu (ISCRA si présent) -> preview.html
+  uv run python -m emailer.render_siae <in.json> --preview [i]
+  uv run python -m emailer.render_siae <in.json> --all [out_dir]
 """
 import json
 import re
 import sys
 from pathlib import Path
 
-from sps.charte import esc
+from emailer.charte import esc
 
 _DEFAULT_IN = "/Users/elodiedelaisement/Desktop/sps-emailer-siae-final.json"
 _OUT_DIR = "out/SIAE-fins-contrats/sept2026"

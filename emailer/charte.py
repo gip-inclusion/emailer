@@ -21,7 +21,7 @@ FONT = "Arial, Helvetica, sans-serif"
 LOGO_URL = "https://img.mailinblue.com/3949075/images/content_library/original/680e18d8b0af2987e384efae.png"
 
 # Encart avis — formulaire Tally. {{ params.EMAIL }} est substitué par Brevo à l'envoi
-# (cf. sps/brevo.py build_payload → params.EMAIL) par l'adresse du destinataire de la copie.
+# (cf. emailer/brevo.py build_payload → params.EMAIL) par l'adresse du destinataire de la copie.
 AVIS_URL = "https://tally.so/r/2E6Q8L?email={{ params.EMAIL }}"
 
 MOIS = ["", "janvier", "février", "mars", "avril", "mai", "juin", "juillet",

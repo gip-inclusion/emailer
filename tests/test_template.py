@@ -1,4 +1,4 @@
-from sps.template import render_richblock, tension_badge, default_intro
+from emailer.template import render_richblock, tension_badge, default_intro
 
 def test_richblock_markdown_to_html():
     html = render_richblock({"format": "markdown", "content": "**Hi** there"})

@@ -1,7 +1,7 @@
 import argparse, sys
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="sps", description="Pipeline e-mails SPS")
+    parser = argparse.ArgumentParser(prog="emailer", description="Rendu et envoi d'e-mails via Brevo")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("convert", help="MD historique → JSON anonyme (1/conseiller)")
@@ -44,26 +44,26 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.cmd == "convert":
-        from sps.convert import run_convert
+        from emailer.convert import run_convert
         run_convert(args.md, args.out)
     elif args.cmd == "deanon":
-        from sps.deanon import run_deanon
+        from emailer.deanon import run_deanon
         run_deanon(args.indir, args.csv, args.out)
     elif args.cmd == "render":
-        from sps.render import run_render
+        from emailer.render import run_render
         run_render(args.indir, args.out)
     elif args.cmd in ("send", "schedule"):
-        from sps.brevo import run_send
+        from emailer.brevo import run_send
         run_send(args.indir, test=args.test,
                  scheduled_at=getattr(args, "at", None),
                  proxy=getattr(args, "via", None),
                  tags=getattr(args, "tag", None),
                  skip_blocklist=getattr(args, "no_blocklist_filter", False))
     elif args.cmd == "cancel":
-        from sps.brevo import run_cancel
+        from emailer.brevo import run_cancel
         run_cancel(args.run_id, proxy=getattr(args, "via", None))
     elif args.cmd == "purge":
-        from sps.purge import run_purge
+        from emailer.purge import run_purge
         run_purge(args.dirs or None, older_than_days=args.older_than, assume_yes=args.yes)
 
 if __name__ == "__main__":

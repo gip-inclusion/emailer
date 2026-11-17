@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from sps.render import render_doc, run_render
+from emailer.render import render_doc, run_render
 
 DOC = {
     "conseiller": {"ref": "PE0TEST", "nom": "DOE Jane", "email": "jane@x.fr", "agence": "AG"},

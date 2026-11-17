@@ -1,6 +1,6 @@
 import os
 import time
-from sps.purge import _candidates, run_purge
+from emailer.purge import _candidates, run_purge
 
 
 def _touch(p, age_days):

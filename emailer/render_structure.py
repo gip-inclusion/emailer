@@ -4,8 +4,8 @@ Adressé à la structure IAE (ses admins). Organisé par SEGMENT = type d'action
 (contacter un prescripteur, prolonger le PASS, faire le bilan…). Chaque contrat est une
 carte-tableau : PASS IAE | Suivi interne | Prescripteur habilité, empilée sur mobile.
 
-Charte et helpers communs : voir sps/charte.py.
-Lancer :  uv run python -m sps.render_structure [in.json out.html]
+Charte et helpers communs : voir emailer/charte.py.
+Lancer :  uv run python -m emailer.render_structure [in.json out.html]
           (défaut : out/SIAE-fins-contrats/SIAE-fins-contrats.json → ….html)
 """
 import json
@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from sps.charte import (BLUE, ORANGE, INK, MUTE, RULE, TINT, FONT, LOGO_URL, URGENCE, RANK,
+from emailer.charte import (BLUE, ORANGE, INK, MUTE, RULE, TINT, FONT, LOGO_URL, URGENCE, RANK,
                         STACK_TABLE_CSS, esc, fr, clean_nom, mailto, avis_encart, contract_table)
 
 _W = 640  # largeur du conteneur (px)
