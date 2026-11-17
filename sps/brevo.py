@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 
 _API = "https://api.brevo.com/v3/smtp/email"
+_BLOCKLIST_API = "https://api.brevo.com/v3/smtp/blockedContacts"
 _SCHEDULE_LOG = "out/schedules.jsonl"
 
 
@@ -68,6 +69,33 @@ def recipients_for(embedded_emails, test):
     return list(dict.fromkeys(e for e in (embedded_emails or []) if e))
 
 
+def fetch_blocklist(client, api_key, limit=100, max_pages=2000):
+    """Ensemble des adresses blocklistées côté Brevo (transactionnel) : hard bounces,
+    désinscriptions et spam. C'est la source de vérité pour pré-filtrer les destinataires
+    AVANT l'appel API (Brevo les droppe de toute façon → gain = 0 appel inutile, stats
+    propres, et respect des désinscriptions). Renvoie un set d'e-mails minuscules.
+    Aucun LLM n'est impliqué ; les adresses ne sont ni affichées ni loggées."""
+    blocked = set()
+    offset = pages = 0
+    while True:
+        r = client.get(_BLOCKLIST_API,
+                       headers={"api-key": api_key, "accept": "application/json"},
+                       params={"limit": limit, "offset": offset})
+        r.raise_for_status()
+        contacts = r.json().get("contacts", [])
+        if not contacts:
+            break
+        for c in contacts:
+            em = (c.get("email") or "").strip().lower()
+            if em:
+                blocked.add(em)
+        offset += len(contacts)
+        pages += 1
+        if pages >= max_pages:
+            break
+    return blocked
+
+
 def build_payload(html, to_email, sender, test, scheduled_at=None, tags=None):
     subject = _title(html)
     if test:
@@ -94,7 +122,8 @@ def _send_one(client, payload, api_key):
     return r.json()
 
 
-def run_send(in_dir, test=False, scheduled_at=None, proxy=None, tags=None):
+def run_send(in_dir, test=False, scheduled_at=None, proxy=None, tags=None,
+             skip_blocklist=False):
     if scheduled_at:
         validate_scheduled_at(scheduled_at)
     api_key = os.environ["BREVO_API_KEY"]
@@ -102,13 +131,29 @@ def run_send(in_dir, test=False, scheduled_at=None, proxy=None, tags=None):
     proxy = _resolve_proxy(proxy)  # egress via une IP fixe whitelistée Brevo (tunnel SOCKS)
     src = Path(in_dir)
     html_files = sorted(src.glob("*.html"))
-    sent, skipped = 0, 0
+    sent, skipped, excluded = 0, 0, 0
     message_ids = []  # pour annuler un envoi programmé (cancel par messageId)
     with httpx.Client(timeout=30, proxy=proxy) as client:
+        # Pré-filtre : on retire les adresses déjà blocklistées côté Brevo (hard bounces,
+        # désinscriptions, spam). Pas appliqué en test (TEST_RECIPIENTS forcés). Si la
+        # blocklist est injoignable, on continue sans filtrer (Brevo droppe de toute façon).
+        blocklist = None
+        if not test and not skip_blocklist:
+            try:
+                blocklist = fetch_blocklist(client, api_key)
+                print(f"pré-filtre blocklist Brevo : {len(blocklist)} adresse(s) exclue(s) d'office")
+            except Exception as e:  # réseau/tunnel/API : dégradation propre
+                print(f"⚠ blocklist Brevo injoignable ({type(e).__name__}) → envoi sans pré-filtre "
+                      "(Brevo exclura quand même les adresses bloquées)")
+                blocklist = None
         for fp in html_files:
             html = fp.read_text(encoding="utf-8")
             emails = re.findall(r"<!--\s*to:\s*([^\s>]+)\s*-->", html)  # tous les destinataires
             tos = recipients_for(emails, test)
+            if blocklist:
+                kept = [t for t in tos if t.strip().lower() not in blocklist]
+                excluded += len(tos) - len(kept)
+                tos = kept
             for to in tos:  # un envoi individuel par destinataire (chacun sa propre copie)
                 resp = _send_one(client, build_payload(html, to, sender, test, scheduled_at, tags), api_key)
                 mid = resp.get("messageId") if isinstance(resp, dict) else None
@@ -120,7 +165,8 @@ def run_send(in_dir, test=False, scheduled_at=None, proxy=None, tags=None):
     mode = "programmé" if scheduled_at else "immédiat"
     via = " via proxy" if proxy else " (direct)"
     tag_txt = f" [tags: {', '.join(tags)}]" if tags else ""
-    print(f"send ({mode}{via}): {sent} envoi(s), {skipped} ignoré(s){tag_txt}")
+    excl_txt = f", {excluded} pré-exclu(s) (blocklist)" if excluded else ""
+    print(f"send ({mode}{via}): {sent} envoi(s), {skipped} ignoré(s){excl_txt}{tag_txt}")
     if scheduled_at:
         run_id = str(uuid.uuid4())
         _log_schedule(_SCHEDULE_LOG, run_id, scheduled_at, message_ids, src)

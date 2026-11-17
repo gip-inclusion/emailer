@@ -78,3 +78,121 @@ def test_log_and_lookup_run(tmp_path):
 
 def test_lookup_run_no_file(tmp_path):
     assert _lookup_run(tmp_path / "absent.jsonl", "x") is None
+
+
+# --- pré-filtre blocklist Brevo -------------------------------------------
+from sps.brevo import fetch_blocklist, run_send
+
+
+class _FakeResp:
+    def __init__(self, contacts):
+        self._contacts = contacts
+    def raise_for_status(self):
+        pass
+    def json(self):
+        return {"contacts": self._contacts}
+
+
+class _FakeClient:
+    """Client httpx minimal : pagine une liste de contacts figée."""
+    def __init__(self, contacts, page=100):
+        self._all = contacts
+        self._page = page
+        self.sent = []
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+    def get(self, url, headers=None, params=None):
+        off = params["offset"]; lim = params["limit"]
+        return _FakeResp(self._all[off:off + lim])
+
+
+def test_fetch_blocklist_paginates_and_lowercases():
+    contacts = [{"email": f"User{i}@X.FR"} for i in range(250)] + [{"email": ""}, {}]
+    c = _FakeClient(contacts, page=100)
+    bl = fetch_blocklist(c, "key", limit=100)
+    assert isinstance(bl, set)
+    assert len(bl) == 250  # les entrées sans email sont ignorées
+    assert "user0@x.fr" in bl and all(e == e.lower() for e in bl)
+
+
+def test_run_send_excludes_blocklisted(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("BREVO_API_KEY", "k")
+    monkeypatch.setenv("BREVO_SENDER", "sam@x.fr")
+    monkeypatch.delenv("BREVO_PROXY", raising=False)
+    (tmp_path / "a.html").write_text(
+        "<html><head><title>T</title></head><body>"
+        "<!-- to: Keep@x.fr --><!-- to: Bounced@x.fr --></body></html>",
+        encoding="utf-8")
+
+    monkeypatch.setattr("sps.brevo.fetch_blocklist", lambda *a, **k: {"bounced@x.fr"})
+    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    sent_to = []
+    monkeypatch.setattr("sps.brevo._send_one",
+                        lambda client, payload, key: sent_to.append(payload["to"][0]["email"]) or {"messageId": "<m>"})
+
+    run_send(str(tmp_path), test=False)
+    assert sent_to == ["Keep@x.fr"]  # la blocklistée est retirée, la casse d'origine préservée
+    out = capsys.readouterr().out
+    assert "1 pré-exclu" in out
+
+
+def test_run_send_test_mode_skips_blocklist(tmp_path, monkeypatch):
+    monkeypatch.setenv("BREVO_API_KEY", "k")
+    monkeypatch.setenv("BREVO_SENDER", "sam@x.fr")
+    monkeypatch.setenv("TEST_RECIPIENTS", "t@x.fr")
+    monkeypatch.delenv("BREVO_PROXY", raising=False)
+    (tmp_path / "a.html").write_text(
+        "<html><head><title>T</title></head><body><!-- to: x@x.fr --></body></html>",
+        encoding="utf-8")
+
+    def _boom(*a, **k):
+        raise AssertionError("fetch_blocklist ne doit pas être appelé en --test")
+    monkeypatch.setattr("sps.brevo.fetch_blocklist", _boom)
+    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    sent_to = []
+    monkeypatch.setattr("sps.brevo._send_one",
+                        lambda client, payload, key: sent_to.append(payload["to"][0]["email"]) or {"messageId": "<m>"})
+
+    run_send(str(tmp_path), test=True)
+    assert sent_to == ["t@x.fr"]
+
+
+def test_run_send_blocklist_fetch_failure_degrades(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("BREVO_API_KEY", "k")
+    monkeypatch.setenv("BREVO_SENDER", "sam@x.fr")
+    monkeypatch.delenv("BREVO_PROXY", raising=False)
+    (tmp_path / "a.html").write_text(
+        "<html><head><title>T</title></head><body><!-- to: x@x.fr --></body></html>",
+        encoding="utf-8")
+
+    def _boom(*a, **k):
+        raise RuntimeError("tunnel down")
+    monkeypatch.setattr("sps.brevo.fetch_blocklist", _boom)
+    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    sent_to = []
+    monkeypatch.setattr("sps.brevo._send_one",
+                        lambda client, payload, key: sent_to.append(payload["to"][0]["email"]) or {"messageId": "<m>"})
+
+    run_send(str(tmp_path), test=False)  # ne doit pas lever : envoi sans pré-filtre
+    assert sent_to == ["x@x.fr"]
+    assert "injoignable" in capsys.readouterr().out
+
+
+def test_run_send_skip_blocklist_flag(tmp_path, monkeypatch):
+    monkeypatch.setenv("BREVO_API_KEY", "k")
+    monkeypatch.setenv("BREVO_SENDER", "sam@x.fr")
+    monkeypatch.delenv("BREVO_PROXY", raising=False)
+    (tmp_path / "a.html").write_text(
+        "<html><head><title>T</title></head><body><!-- to: x@x.fr --></body></html>",
+        encoding="utf-8")
+
+    def _boom(*a, **k):
+        raise AssertionError("fetch_blocklist ne doit pas être appelé avec skip_blocklist=True")
+    monkeypatch.setattr("sps.brevo.fetch_blocklist", _boom)
+    monkeypatch.setattr("sps.brevo.httpx.Client", lambda *a, **k: _FakeClient([]))
+    monkeypatch.setattr("sps.brevo._send_one",
+                        lambda client, payload, key: {"messageId": "<m>"})
+
+    run_send(str(tmp_path), test=False, skip_blocklist=True)  # ne doit pas lever

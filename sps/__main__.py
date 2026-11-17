@@ -19,6 +19,8 @@ def main(argv=None):
     p.add_argument("--via", help="Proxy egress (ex. socks5h://127.0.0.1:1080), sinon BREVO_PROXY")
     p.add_argument("--tag", action="append", metavar="TAG",
                    help="tag de campagne Brevo (répétable) pour filtrer les stats par tag")
+    p.add_argument("--no-blocklist-filter", action="store_true",
+                   help="ne pas pré-exclure les adresses blocklistées Brevo (hard bounces, désinscriptions)")
 
     p = sub.add_parser("schedule", help="Envoi programmé via Brevo (scheduledAt)")
     p.add_argument("indir"); p.add_argument("--at", required=True)
@@ -26,6 +28,8 @@ def main(argv=None):
     p.add_argument("--via", help="Proxy egress (ex. socks5h://127.0.0.1:1080), sinon BREVO_PROXY")
     p.add_argument("--tag", action="append", metavar="TAG",
                    help="tag de campagne Brevo (répétable) pour filtrer les stats par tag")
+    p.add_argument("--no-blocklist-filter", action="store_true",
+                   help="ne pas pré-exclure les adresses blocklistées Brevo (hard bounces, désinscriptions)")
 
     p = sub.add_parser("cancel", help="Annule un envoi programmé Brevo (par runId, ou messageId)")
     p.add_argument("run_id")
@@ -53,7 +57,8 @@ def main(argv=None):
         run_send(args.indir, test=args.test,
                  scheduled_at=getattr(args, "at", None),
                  proxy=getattr(args, "via", None),
-                 tags=getattr(args, "tag", None))
+                 tags=getattr(args, "tag", None),
+                 skip_blocklist=getattr(args, "no_blocklist_filter", False))
     elif args.cmd == "cancel":
         from sps.brevo import run_cancel
         run_cancel(args.run_id, proxy=getattr(args, "via", None))
