@@ -5,7 +5,7 @@ description = "Rendu et envoi d'e-mails (campagnes La Plateforme de l'inclusion)
 requires-python = ">=3.12"
 dependencies = [
     "httpx[socks]>=0.28.1",
-    "markdown>=3.10.3",
+    "markdown>=3.11.3",
     "jsonschema>=4.21",
 ]
 
